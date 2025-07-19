@@ -1,0 +1,76 @@
+import time
+import argparse
+from graph_build import main as graph_build
+from fusion_detect import main as fusion_detect
+
+def cmd_graph_build(args):
+    start_time = time.time()
+    print('-' * 50)
+    print('START REFERENCE GRAPH CONSTRUCTION')
+    print('-' * 50)
+    graph_build(vars(args)['<gff_path>'], vars(args)['<ref_path>'], args.threads, args.output_dir, args.log_file)
+    print('-' * 50)
+    print('REFERENCE GRAPH CONSTRUCTION FINISHED')
+    end_time = time.time()
+    elapsed_time = end_time - start_time
+    print(f'Totally used: {elapsed_time:.2f} seconds')
+    print('-' * 50)
+
+
+def cmd_fusion_detect(args):
+    start_time = time.time()
+    print('-' * 50)
+    print('START FUSION DETECTION')
+    print('-' * 50)
+    graph_align_params = (args.graph_aln_k,args.graph_aln_w,args.graph_aln_m)
+    process_params = (args.min_supporting_reads, args.min_block_length, args.max_gap_length, args.min_cseq_length, args.bp_cluster_distance,
+                     args.max_gap_one_aln, args.max_gap_two_aln, args.skip_chrM, args.only_keep_pcgene)
+    fusion_detect(vars(args)['<readfile>'], vars(args)['<ref_path>'], vars(args)['<ref_dir>'], args.output_dir, args.threads,graph_align_params, process_params)
+    print('-' * 50)
+    print('FUSION DETECTION FINISHED')
+    end_time = time.time()
+    elapsed_time = end_time - start_time
+    print(f'Totally used {elapsed_time:.2f} seconds')
+    print('-' * 50)
+
+
+def Parser_set():
+    parser = argparse.ArgumentParser()
+    subparser = parser.add_subparsers()
+    ###################
+    graph_parser = subparser.add_parser('graph')
+    graph_parser.add_argument('<gff_path>', type=str, help='Path to gene annotation file (gff3)')
+    graph_parser.add_argument('<ref_path>', type=str, help='Path to reference genome file')
+    graph_parser.add_argument('-t','--threads', type=int, default=8, help='Number of threads to use, default is 8',metavar='int')
+    graph_parser.add_argument('-o','--output_dir', type=str, default='./graph_ref/', help='Directory to store graph_build output files', metavar='dir')
+    graph_parser.add_argument('-l','--log_file', type=str, default='graph_build.log', help='Path to log file')
+    graph_parser.set_defaults(func=cmd_graph_build)
+    ###################
+    detect_parser = subparser.add_parser('detect', help='Dectect gene fusions')
+    detect_parser.add_argument('<readfile>', type=str, help='Read file (fasta/fastq)')
+    detect_parser.add_argument('<ref_path>', type=str, help='Path to reference genome file')
+    detect_parser.add_argument('<ref_dir>', type=str, default='./graph_ref/', help='Index directory')
+    detect_parser.add_argument('-o', '--output_dir', type=str, default='./result', help='the name of fusion result (default = "./result")', metavar='str')
+    detect_parser.add_argument('-t', '--threads', type=int, default=8, help='Number of threads to use, default is 8',metavar='int')
+    detect_parser.add_argument('-k', '--graph_aln_k', type=int, default=12, help='Minigraph k-mer size (default = 12)', metavar='int')
+    detect_parser.add_argument('-w', '--graph_aln_w', type=int, default=1, help='Minigraph minizer window size (default = 1)', metavar='int')
+    detect_parser.add_argument('-m', '--graph_aln_m', type=str, default='30,20', help='Minigraph minimal graph/linear chaining score (default = 30,20)', metavar='str')
+    detect_parser.add_argument('-s', '--min_supporting_reads', type=int, default=2, help='Minimum reads number to support gene fusions (default = 2)', metavar='int')
+    detect_parser.add_argument('-l', '--min_block_length', type=int, default=30, help='Minimum read length for fusion detection (default = 30)', metavar='int')
+    detect_parser.add_argument('-g', '--max_gap_length', type=int, default=200, help='Maximum gap length between two genes that a read maps to (default = 200)', metavar='int')
+    detect_parser.add_argument('-c', '--min_cseq_length', type=int, default=30, help='Minimum length of the generated partial consensus sequence (default = 30)', metavar='int')
+    detect_parser.add_argument('-d', '--bp_cluster_distance', type=int, default=30, help='Maximum distance of breakpoint cluster (default = 30)', metavar='int')
+    detect_parser.add_argument('-O', '--max_gap_one_aln', type=int, default=30, help='Maximum length of the mappy condition ONE_ALIGNMENT (default = 30)', metavar='int')
+    detect_parser.add_argument('-T', '--max_gap_two_aln', type=int, default=15, help='Maximum length of the mappy condition TWO_ALIGNMENTS (default = 15)', metavar='int')
+    detect_parser.add_argument('-M', '--skip_chrM', type=bool, default=True, help='Skip chrM in fusion detection (default = True)', metavar='bool')
+    detect_parser.add_argument('-P', '--only_keep_pcgene', type=bool, default=True, help='Only keep protein-coding genes in fusion detection (default = True)', metavar='bool')
+    detect_parser.set_defaults(func=cmd_fusion_detect)
+
+    args = parser.parse_args()
+    if not hasattr(args, 'func'):
+        args = parser.parse_args(['-h'])
+    args.func(args)
+
+if __name__ == "__main__":
+    Parser_set()
+    
