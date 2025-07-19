@@ -1,14 +1,13 @@
-import pandas as pd
-from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, as_completed
 import os
-import traceback
+import re
 import time
+import logging
+import traceback
 import argparse
+import pandas as pd
 from collections import defaultdict
 from pyfaidx import Fasta
-import re
-import sys
-import logging
+from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, as_completed
 
 def setup_logging(log_path='graph_build.log'):
     logging.basicConfig(
@@ -442,6 +441,7 @@ def build_gencode_graph(subregion, fna_file_path, output_dir):
     finally:
         end_time = time.time()
         logging.info(f'Complete region: {df.iloc[0, 0]}, Runtime: {end_time - start_time} seconds')
+        print(f'Complete region: {df.iloc[0, 0]}, Runtime: {end_time - start_time} seconds')
     return chromosome, chromosome_subgraph, gene_positions
 
 def write_gene_positions(gene_positions, output_dir):
@@ -502,12 +502,11 @@ def merge_gfa_files(input_folder, output_file, num_threads=8):
     try:
         with open(output_file, 'w') as output_file_handle:
             output_file_handle.writelines(filtered_contents)
-        logging.info(f"Successfully merged GFA files into: {output_file}")
+        logging.info(f"Successfully created GFA file: {output_file}")
     except IOError as e:
         logging.info(f"Error writing to file {output_file}: {e}")
 
 def main(gff_path,ref_path,num_threads,output_dir,log_file):
-    # output_dir = parsed_args.output_dir
     os.makedirs(output_dir, exist_ok=True)
     
     # Create PC and non-PC subdirectories
@@ -526,19 +525,20 @@ def main(gff_path,ref_path,num_threads,output_dir,log_file):
 
     start_time = time.time()
     logging.info('Start processing gene annotation data')
-
+    print('Start processing gene annotation data')
     # Initialize chromosome_graph
     chromosome_graph = init_chromosome_graph()
     logging.info('Initialization of chromosome_graph completed')
 
     # Split GFF file
     subregions = split_gff_into_subregions(gff_path)
-    logging.info(f'The GFF file is split into {len(subregions)} subregions')
-
+    logging.info(f'The annotation file is split into {len(subregions)} subregions')
+    print(f'The annotation file is split into {len(subregions)} subregions')
     # Process subregions - now passes output_dir to the function
     process_subregions(subregions, chromosome_graph, fna_file_path, output_dir, num_threads)
     logging.info('Sub-region processing completed')
-
+    print('Sub-region processing completed')
+    
     # Create output paths for merged GFA files
     pc_only_gfa = os.path.join(output_dir, 'only_pc.gfa')
     comprehensive_gfa = os.path.join(output_dir, 'comprehensive.gfa')
@@ -546,6 +546,7 @@ def main(gff_path,ref_path,num_threads,output_dir,log_file):
     # Merge PC GFA files to create PC-only file
     merge_gfa_files(pc_dir, pc_only_gfa, num_threads)
     logging.info('PC GFA file merge completed')
+    print(f"Successfully created GFA file: {pc_only_gfa}")
     
     # Merge PC and non-PC GFA files for comprehensive file
     # First, merge PC files
@@ -568,16 +569,23 @@ def main(gff_path,ref_path,num_threads,output_dir,log_file):
     try:
         with open(comprehensive_gfa, 'w') as output_file:
             output_file.writelines(pc_contents + non_pc_contents)
-        logging.info(f"Successfully created comprehensive GFA file: {comprehensive_gfa}")
+        logging.info(f"Successfully created GFA file: {comprehensive_gfa}")
+        print(f"Successfully created GFA file: {comprehensive_gfa}")
     except IOError as e:
         logging.info(f"Error writing to comprehensive GFA file: {e}")
 
-    # Finish timing
     end_time = time.time()
     elapsed_time = end_time - start_time
-    print(f'graph_build running time: {elapsed_time:.2f} seconds')
     logging.info(f'graph_build total runtime: {elapsed_time:.2f} seconds')
-
+    print(f'graph_build total runtime: {elapsed_time:.2f} seconds')
+    
+    # clean middle files
+    print('Deleting middle files')
+    os.system('rm -rf ' + pc_dir)
+    os.system('rm -rf ' + non_pc_dir)
+    
+    
+    
 def main_argparse(args=None):
     parser = argparse.ArgumentParser(description='Process gene annotations to build graph representations')
     parser.add_argument(
@@ -687,8 +695,11 @@ def main_argparse(args=None):
     elapsed_time = end_time - start_time
     print(f'graph_build running time: {elapsed_time:.2f} seconds')
     logging.info(f'graph_build total runtime: {elapsed_time:.2f} seconds')
+    
+    # clean middle files
+    os.system('rm -rf ' + pc_dir)
+    os.system('rm -rf ' + non_pc_dir)
 
 if __name__ == "__main__":
     main_argparse()
     
-# python graph_build.py --gff_path /data2/bywang/gencode47/egff.gff --fna_file_path /data/bywang/other_tools/gencode.GRCh38.p14.genome.fa
